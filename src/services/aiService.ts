@@ -35,7 +35,12 @@ export async function generateScenarioForQuestion(
   question: QuestionItem,
   options: GenerationOptions
 ): Promise<ScenarioData> {
-  const { apiKey, model = 'gemini-2.5-flash', customRules } = options;
+  let { apiKey, model = 'gemini-3.8-flash', customRules } = options;
+
+  // Eski veya desteklenmeyen modelleri otomatik en yeni modele dönüştür
+  if (!model || model === 'gemini-2.5-flash') {
+    model = 'gemini-3.8-flash';
+  }
 
   if (!apiKey || apiKey.trim().length === 0) {
     throw new Error('Lütfen geçerli bir Gemini API anahtarı girin.');

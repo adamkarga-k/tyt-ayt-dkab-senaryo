@@ -53,7 +53,7 @@ const SETTINGS_KEY = 'tyt_ayt_scenario_app_settings';
 
 export const defaultSettings: AppSettings = {
   geminiApiKey: '',
-  selectedModel: 'gemini-2.5-flash',
+  selectedModel: 'gemini-3.8-flash',
   customPromptRules: '',
   onboardingCompleted: false,
   autoDelaySeconds: 2,
@@ -64,7 +64,12 @@ export function getAppSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return defaultSettings;
-    return { ...defaultSettings, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    // Eski gemini-2.5-flash varsa otomatik gemini-3.8-flash yap
+    if (parsed.selectedModel === 'gemini-2.5-flash') {
+      parsed.selectedModel = 'gemini-3.8-flash';
+    }
+    return { ...defaultSettings, ...parsed };
   } catch {
     return defaultSettings;
   }

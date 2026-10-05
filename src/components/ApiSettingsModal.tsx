@@ -156,9 +156,9 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
                   onChange={(e) => setSelectedModel(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 >
-                  <option value="gemini-2.5-flash">Gemini 2.5 Flash (En Hızlı, Yüksek Doğruluk ve Önerilen)</option>
-                  <option value="gemini-2.0-flash">Gemini 2.0 Flash (Hızlı ve Dengeli)</option>
-                  <option value="gemini-1.5-flash">Gemini 1.5 Flash (Klasik Sürüm)</option>
+                  <option value="gemini-3.8-flash">Gemini 3.8 Flash (Google Güncel Sürüm, En Hızlı & Önerilen)</option>
+                  <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                  <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
                 </select>
               </div>
             </>
