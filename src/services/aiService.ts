@@ -28,25 +28,29 @@ function parseScenarioResponse(rawText: string): ScenarioData {
   };
 }
 
+// Denenecek model öncelik listesi (Yoğunluk anında otomatik olarak sıradakine geçer)
+const FALLBACK_MODELS = [
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-2.5-flash',
+  'gemini-3.8-flash'
+];
+
 /**
  * Tek bir soru görselini Gemini API'ye gönderip çözüm senaryosu üreten fonksiyon
+ * Yüksek yoğunluk (high demand) veya geçici hatalarda otomatik olarak alternatif modellere geçer.
  */
 export async function generateScenarioForQuestion(
   question: QuestionItem,
   options: GenerationOptions
 ): Promise<ScenarioData> {
-  let { apiKey, model = 'gemini-3.8-flash', customRules } = options;
-
-  // Eski veya desteklenmeyen modelleri otomatik en yeni modele dönüştür
-  if (!model || model === 'gemini-2.5-flash') {
-    model = 'gemini-3.8-flash';
-  }
+  const { apiKey, model = 'gemini-2.0-flash', customRules } = options;
 
   if (!apiKey || apiKey.trim().length === 0) {
     throw new Error('Lütfen geçerli bir Gemini API anahtarı girin.');
   }
 
-  // Base64 görsel verisini temizle (varsa data:image/png;base64, kısmını ayıkla)
+  // Base64 görsel verisini temizle
   let base64Data = question.imageBase64;
   let mimeType = question.mimeType || 'image/jpeg';
 
@@ -61,60 +65,83 @@ export async function generateScenarioForQuestion(
 
   const promptText = buildPromptWithCustomRules(customRules);
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey.trim())}`;
+  // İlk denenecek model ve ardından sırayla denenecek yedek modeller
+  const candidateModels = [
+    model,
+    ...FALLBACK_MODELS.filter(m => m !== model)
+  ];
 
-  const requestBody = {
-    contents: [
-      {
-        parts: [
-          {
-            text: promptText
-          },
-          {
-            inline_data: {
-              mime_type: mimeType,
-              data: base64Data
+  let lastErrorMessage = '';
+
+  for (let i = 0; i < candidateModels.length; i++) {
+    const activeModel = candidateModels[i];
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(activeModel)}:generateContent?key=${encodeURIComponent(apiKey.trim())}`;
+
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            { text: promptText },
+            {
+              inline_data: {
+                mime_type: mimeType,
+                data: base64Data
+              }
             }
-          }
-        ]
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 3000
       }
-    ],
-    generationConfig: {
-      temperature: 0.3, // Eğitsel doğruluk ve tutarlılık için düşük sıcaklık
-      maxOutputTokens: 3000
-    }
-  };
+    };
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(requestBody)
-  });
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
 
-  if (!response.ok) {
-    const errorJson = await response.json().catch(() => ({}));
-    const message = errorJson.error?.message || `API Hatası (${response.status}): ${response.statusText}`;
-    
-    if (response.status === 400 && message.toLowerCase().includes('api key')) {
-      throw new Error('Geçersiz Gemini API Anahtarı! Lütfen API anahtarınızı kontrol edin.');
+      if (!response.ok) {
+        const errorJson = await response.json().catch(() => ({}));
+        const message = errorJson.error?.message || `API Hatası (${response.status}): ${response.statusText}`;
+
+        // Geçersiz API anahtarı ise model değiştirmeye gerek yok, doğrudan hata ver
+        if (response.status === 400 && message.toLowerCase().includes('api key')) {
+          throw new Error('Geçersiz Gemini API Anahtarı! Lütfen API anahtarınızı kontrol edin.');
+        }
+
+        // Yüksek yoğunluk veya kota ise yedek modeli dene
+        lastErrorMessage = message;
+        console.warn(`Model ${activeModel} yanıt veremedi (${message}), yedek model deneniyor...`);
+        await sleep(1000);
+        continue;
+      }
+
+      const data = await response.json();
+      const candidate = data.candidates?.[0];
+      const textOutput = candidate?.content?.parts?.[0]?.text;
+
+      if (!textOutput) {
+        lastErrorMessage = 'Yapay zeka bu modelde metin üretemedi.';
+        continue;
+      }
+
+      return parseScenarioResponse(textOutput);
+    } catch (err: any) {
+      if (err.message?.includes('Geçersiz Gemini API')) {
+        throw err;
+      }
+      lastErrorMessage = err.message || 'Bağlantı hatası oluştu.';
+      await sleep(1000);
     }
-    if (response.status === 429) {
-      throw new Error('API İstek Kotası (Rate Limit) aşıldı. Lütfen birkaç saniye bekleyin.');
-    }
-    throw new Error(message);
   }
 
-  const data = await response.json();
-  const candidate = data.candidates?.[0];
-  const textOutput = candidate?.content?.parts?.[0]?.text;
-
-  if (!textOutput) {
-    throw new Error('Yapay zeka bu soru için yanıt üretemedi veya içerik güvenlik filtresine takıldı.');
-  }
-
-  return parseScenarioResponse(textOutput);
+  throw new Error(`Google sunucuları şu an çok yoğun (${lastErrorMessage}). Lütfen 5-10 saniye sonra "Tekrar Dene" butonuna basın.`);
 }
 
 // Yardımcı bekleme fonksiyonu (Rate limit önlemek için)
