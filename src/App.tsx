@@ -276,6 +276,14 @@ export function App() {
     }
   };
 
+  // Doğru Cevap Şıkkı Belirleme (A, B, C, D, E veya auto)
+  const handleSelectCorrectAnswer = async (questionId: string, answer: 'A' | 'B' | 'C' | 'D' | 'E' | 'auto') => {
+    await db.questions.update(questionId, {
+      correctAnswer: answer,
+      updatedAt: Date.now()
+    });
+  };
+
   // Senaryo Metnini Düzenleme
   const handleUpdateScenarioText = async (questionId: string, updatedText: string) => {
     const q = await db.questions.get(questionId);
@@ -485,6 +493,7 @@ export function App() {
                     question={question}
                     folderName={folder?.name || 'Genel Havuz'}
                     onUpdateScenario={handleUpdateScenarioText}
+                    onSelectCorrectAnswer={handleSelectCorrectAnswer}
                     onRegenerate={handleRegenerateQuestion}
                     onDelete={handleDeleteQuestion}
                     onOpenMoveModal={(q) => setMovingQuestion(q)}

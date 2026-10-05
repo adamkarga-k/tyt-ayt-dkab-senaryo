@@ -63,7 +63,12 @@ export async function generateScenarioForQuestion(
     }
   }
 
-  const promptText = buildPromptWithCustomRules(customRules);
+  let promptText = buildPromptWithCustomRules(customRules);
+
+  // Öğretmen/Kullanıcı tarafından doğru cevap şıkkı belirlendiyse yapay zekaya zorunlu talimat olarak ekle
+  if (question.correctAnswer && question.correctAnswer !== 'auto') {
+    promptText += `\n\n🎯 KESİN DOĞRU CEVAP TALİMATI: Bu sorunun doğru cevabı kesinlikle "${question.correctAnswer}" seçeneğidir. Görseldeki metni ve şıkları eksiksiz oku; "${question.correctAnswer}" seçeneğinin neden doğru olduğunu ve diğer seçeneklerin neden elendiğini az önce belirlenen MEBİ video seslendirme senaryosu kalıplarına uygun olarak açıkla.`;
+  }
 
   // İlk denenecek model ve ardından sırayla denenecek yedek modeller
   const candidateModels = [

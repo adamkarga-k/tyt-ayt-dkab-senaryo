@@ -21,6 +21,7 @@ interface QuestionCardProps {
   question: QuestionItem;
   folderName: string;
   onUpdateScenario: (questionId: string, updatedText: string) => void;
+  onSelectCorrectAnswer: (questionId: string, answer: 'A' | 'B' | 'C' | 'D' | 'E' | 'auto') => void;
   onRegenerate: (question: QuestionItem) => void;
   onDelete: (questionId: string) => void;
   onOpenMoveModal: (question: QuestionItem) => void;
@@ -31,6 +32,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   question,
   folderName,
   onUpdateScenario,
+  onSelectCorrectAnswer,
   onRegenerate,
   onDelete,
   onOpenMoveModal,
@@ -39,6 +41,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editedText, setEditedText] = useState(question.scenario?.fullText || '');
   const [copied, setCopied] = useState(false);
+
+  const selectedAnswer = question.correctAnswer || question.scenario?.correctOption || 'auto';
 
   const handleCopy = () => {
     if (question.scenario?.fullText) {
@@ -110,6 +114,50 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
             >
               <Maximize2 className="w-4 h-4" /> Büyüt ve İncele
             </button>
+          </div>
+
+          {/* Doğru Cevap Seçim Barı (A, B, C, D, E) */}
+          <div className="mt-3 p-2 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                Doğru Cevap:
+              </span>
+              <span className="text-[10px] text-slate-400">
+                {question.correctAnswer && question.correctAnswer !== 'auto'
+                  ? `Belirlendi (${question.correctAnswer})`
+                  : 'Yapay Zeka Tespiti'}
+              </span>
+            </div>
+            <div className="grid grid-cols-6 gap-1">
+              {(['A', 'B', 'C', 'D', 'E'] as const).map(opt => {
+                const isSelected = selectedAnswer === opt;
+                return (
+                  <button
+                    key={opt}
+                    onClick={() => onSelectCorrectAnswer(question.id, opt)}
+                    className={`py-1 text-xs font-bold rounded-lg border transition-all ${
+                      isSelected
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm scale-105'
+                        : 'bg-slate-50 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600'
+                    }`}
+                    title={`Doğru cevabı ${opt} olarak belirle`}
+                  >
+                    {opt}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => onSelectCorrectAnswer(question.id, 'auto')}
+                className={`py-1 text-[10px] font-semibold rounded-lg border transition-all ${
+                  selectedAnswer === 'auto'
+                    ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 border-slate-800'
+                    : 'bg-slate-50 dark:bg-slate-700/60 text-slate-500 border-slate-200 dark:border-slate-600 hover:bg-slate-100'
+                }`}
+                title="Yapay zeka kendisi tespit etsin"
+              >
+                Oto
+              </button>
+            </div>
           </div>
         </div>
 

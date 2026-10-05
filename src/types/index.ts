@@ -28,6 +28,7 @@ export interface QuestionItem {
   mimeType: string;
   status: 'pending' | 'processing' | 'completed' | 'error';
   errorMessage?: string;
+  correctAnswer?: 'A' | 'B' | 'C' | 'D' | 'E' | 'auto';
   createdAt: number;
   updatedAt: number;
   scenario?: ScenarioData;
