@@ -28,16 +28,16 @@ function parseScenarioResponse(rawText: string): ScenarioData {
   };
 }
 
-// Denenecek model öncelik listesi (Google'ın yeni kullanıcılara sunduğu güncel ve kararlı modeller)
-const FALLBACK_MODELS = [
+// Google v1beta tarafından %100 desteklenen resmi ve güncel modeller
+const SUPPORTED_MODELS = [
   'gemini-3.8-flash',
   'gemini-2.0-flash',
-  'gemini-1.5-flash'
+  'gemini-2.0-flash-lite'
 ];
 
 /**
  * Tek bir soru görselini Gemini API'ye gönderip çözüm senaryosu üreten fonksiyon
- * Yüksek yoğunluk (high demand) veya geçici hatalarda otomatik olarak alternatif modellere geçer.
+ * Anlık dalgalanmalarda önce akıllı tekrar dener (retry), gerekirse güncel yedek modele geçer.
  */
 export async function generateScenarioForQuestion(
   question: QuestionItem,
@@ -49,8 +49,8 @@ export async function generateScenarioForQuestion(
     throw new Error('Lütfen geçerli bir Gemini API anahtarı girin.');
   }
 
-  // Google'ın yeni kullanıcılara kapattığı 2.5 modellerini kesin olarak engelle ve 3.8'e yükselt
-  if (!model || model.includes('2.5')) {
+  // Eski/desteklenmeyen modelleri (1.5 ve 2.5) kesin olarak engelle ve 3.8'e yükselt
+  if (!model || model.includes('1.5') || model.includes('2.5')) {
     model = 'gemini-3.8-flash';
   }
 
@@ -74,79 +74,84 @@ export async function generateScenarioForQuestion(
     promptText += `\n\n🎯 KESİN DOĞRU CEVAP TALİMATI: Bu sorunun doğru cevabı kesinlikle "${question.correctAnswer}" seçeneğidir. Görseldeki metni ve şıkları eksiksiz oku; "${question.correctAnswer}" seçeneğinin neden doğru olduğunu ve diğer seçeneklerin neden elendiğini az önce belirlenen MEBİ video seslendirme senaryosu kalıplarına uygun olarak açıkla.`;
   }
 
-  // İlk denenecek model ve ardından sırayla denenecek yedek modeller
+  // Denenecek güncel modeller listesi
   const candidateModels = [
     model,
-    ...FALLBACK_MODELS.filter(m => m !== model && !m.includes('2.5'))
+    ...SUPPORTED_MODELS.filter(m => m !== model)
   ];
 
   let lastErrorMessage = '';
 
-  for (let i = 0; i < candidateModels.length; i++) {
-    const activeModel = candidateModels[i];
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(activeModel)}:generateContent?key=${encodeURIComponent(apiKey.trim())}`;
+  for (const activeModel of candidateModels) {
+    // Her model için anlık dalgalanmalara karşı 2 defa deneme hakkı
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(activeModel)}:generateContent?key=${encodeURIComponent(apiKey.trim())}`;
 
-    const requestBody = {
-      contents: [
-        {
-          parts: [
-            { text: promptText },
-            {
-              inline_data: {
-                mime_type: mimeType,
-                data: base64Data
+      const requestBody = {
+        contents: [
+          {
+            parts: [
+              { text: promptText },
+              {
+                inline_data: {
+                  mime_type: mimeType,
+                  data: base64Data
+                }
               }
-            }
-          ]
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 3000
         }
-      ],
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 3000
-      }
-    };
+      };
 
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
-      });
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        });
 
-      if (!response.ok) {
-        const errorJson = await response.json().catch(() => ({}));
-        const message = errorJson.error?.message || `API Hatası (${response.status}): ${response.statusText}`;
+        if (!response.ok) {
+          const errorJson = await response.json().catch(() => ({}));
+          const message = errorJson.error?.message || `API Hatası (${response.status}): ${response.statusText}`;
 
-        // Geçersiz API anahtarı ise model değiştirmeye gerek yok, doğrudan hata ver
-        if (response.status === 400 && message.toLowerCase().includes('api key')) {
-          throw new Error('Geçersiz Gemini API Anahtarı! Lütfen API anahtarınızı kontrol edin.');
+          if (response.status === 400 && message.toLowerCase().includes('api key')) {
+            throw new Error('Geçersiz Gemini API Anahtarı! Lütfen API anahtarınızı kontrol edin.');
+          }
+
+          lastErrorMessage = message;
+          // Eğer 404 (model bulunamadı) ise bu modelde tekrar deneme yapma, sıradaki modele geç
+          if (response.status === 404) {
+            break;
+          }
+
+          // Geçici yoğunluk ise kısa süre bekleyip tekrar dene
+          await sleep(1200);
+          continue;
         }
 
-        // Yüksek yoğunluk veya kota ise yedek modeli dene
-        lastErrorMessage = message;
-        console.warn(`Model ${activeModel} yanıt veremedi (${message}), yedek model deneniyor...`);
+        const data = await response.json();
+        const candidate = data.candidates?.[0];
+        const textOutput = candidate?.content?.parts?.[0]?.text;
+
+        if (!textOutput) {
+          lastErrorMessage = 'Yapay zeka bu görsel için metin üretemedi.';
+          continue;
+        }
+
+        return parseScenarioResponse(textOutput);
+      } catch (err: any) {
+        if (err.message?.includes('Geçersiz Gemini API')) {
+          throw err;
+        }
+        lastErrorMessage = err.message || 'Bağlantı hatası oluştu.';
         await sleep(1000);
-        continue;
       }
-
-      const data = await response.json();
-      const candidate = data.candidates?.[0];
-      const textOutput = candidate?.content?.parts?.[0]?.text;
-
-      if (!textOutput) {
-        lastErrorMessage = 'Yapay zeka bu modelde metin üretemedi.';
-        continue;
-      }
-
-      return parseScenarioResponse(textOutput);
-    } catch (err: any) {
-      if (err.message?.includes('Geçersiz Gemini API')) {
-        throw err;
-      }
-      lastErrorMessage = err.message || 'Bağlantı hatası oluştu.';
-      await sleep(1000);
     }
   }
 
