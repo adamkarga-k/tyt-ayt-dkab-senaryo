@@ -28,16 +28,16 @@ function parseScenarioResponse(rawText: string): ScenarioData {
   };
 }
 
-// Google v1beta tarafından %100 desteklenen resmi ve güncel modeller
+// Google Gemini resmi ve güncel 3.x serisi modelleri
 const SUPPORTED_MODELS = [
   'gemini-3.8-flash',
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite'
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite'
 ];
 
 /**
  * Tek bir soru görselini Gemini API'ye gönderip çözüm senaryosu üreten fonksiyon
- * Anlık dalgalanmalarda önce akıllı tekrar dener (retry), gerekirse güncel yedek modele geçer.
+ * Anlık dalgalanmalarda önce akıllı tekrar dener (retry), gerekirse güncel 3.x yedek modele geçer.
  */
 export async function generateScenarioForQuestion(
   question: QuestionItem,
@@ -49,8 +49,8 @@ export async function generateScenarioForQuestion(
     throw new Error('Lütfen geçerli bir Gemini API anahtarı girin.');
   }
 
-  // Eski/desteklenmeyen modelleri (1.5 ve 2.5) kesin olarak engelle ve 3.8'e yükselt
-  if (!model || model.includes('1.5') || model.includes('2.5')) {
+  // Eski/kapatılmış modelleri (1.5, 2.0, 2.5) kesin olarak engelle ve 3.8-flash'a yükselt
+  if (!model || model.includes('1.5') || model.includes('2.0') || model.includes('2.5')) {
     model = 'gemini-3.8-flash';
   }
 
