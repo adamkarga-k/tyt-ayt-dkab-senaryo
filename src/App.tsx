@@ -61,9 +61,12 @@ export function App() {
   const folders = useLiveQuery(() => db.folders.toArray(), []) || [];
   const questions = useLiveQuery(() => db.questions.reverse().sortBy('createdAt'), []) || [];
 
-  // İlk yüklemede DB'yi hazırla & Onboarding kontrolü
+  // İlk yüklemede DB'yi hazırla, takılı kalan soruları sıfırla & Onboarding kontrolü
   useEffect(() => {
-    initializeDatabase().then(() => {
+    initializeDatabase().then(async () => {
+      // Sayfa yenilendiğinde veya açıldığında havada asılı kalan 'processing' durumlarını temizle
+      await db.questions.where('status').equals('processing').modify({ status: 'pending' });
+
       const currentSettings = getAppSettings();
       setSettings(currentSettings);
       // Kullanıcının ilk girişi ise veya API anahtarı boşsa API rehber modalini aç
@@ -274,6 +277,15 @@ export function App() {
         updatedAt: Date.now()
       });
     }
+  };
+
+  // İşlemi İptal Etme / Sıfırlama
+  const handleCancelProcessing = async (questionId: string) => {
+    await db.questions.update(questionId, {
+      status: 'pending',
+      errorMessage: undefined,
+      updatedAt: Date.now()
+    });
   };
 
   // Doğru Cevap Şıkkı Belirleme (A, B, C, D, E veya auto)
@@ -495,6 +507,7 @@ export function App() {
                     onUpdateScenario={handleUpdateScenarioText}
                     onSelectCorrectAnswer={handleSelectCorrectAnswer}
                     onRegenerate={handleRegenerateQuestion}
+                    onCancelProcessing={handleCancelProcessing}
                     onDelete={handleDeleteQuestion}
                     onOpenMoveModal={(q) => setMovingQuestion(q)}
                     onOpenImageModal={(src, title) => setZoomedImage({ src, title })}

@@ -13,7 +13,8 @@ import {
   Edit3,
   Save,
   BookOpen,
-  Sparkles
+  Sparkles,
+  XCircle
 } from 'lucide-react';
 import type { QuestionItem } from '../types';
 
@@ -23,6 +24,7 @@ interface QuestionCardProps {
   onUpdateScenario: (questionId: string, updatedText: string) => void;
   onSelectCorrectAnswer: (questionId: string, answer: 'A' | 'B' | 'C' | 'D' | 'E' | 'auto') => void;
   onRegenerate: (question: QuestionItem) => void;
+  onCancelProcessing: (questionId: string) => void;
   onDelete: (questionId: string) => void;
   onOpenMoveModal: (question: QuestionItem) => void;
   onOpenImageModal: (imageSrc: string, title: string) => void;
@@ -34,6 +36,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   onUpdateScenario,
   onSelectCorrectAnswer,
   onRegenerate,
+  onCancelProcessing,
   onDelete,
   onOpenMoveModal,
   onOpenImageModal
@@ -67,9 +70,18 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         );
       case 'processing':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 border border-blue-300 dark:border-blue-800 animate-pulse">
-            <Loader2 className="w-3 h-3 animate-spin text-blue-600" /> Çözüm Üretiliyor...
-          </span>
+          <div className="flex items-center gap-1">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 border border-blue-300 dark:border-blue-800 animate-pulse">
+              <Loader2 className="w-3 h-3 animate-spin text-blue-600" /> Çözüm Üretiliyor...
+            </span>
+            <button
+              onClick={() => onCancelProcessing(question.id)}
+              title="İşlemi İptal Et / Sıfırla"
+              className="p-0.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-full transition-colors"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+            </button>
+          </div>
         );
       case 'error':
         return (
@@ -235,8 +247,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
             <button
               onClick={() => onRegenerate(question)}
-              disabled={question.status === 'processing'}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 transition-colors"
               title="Yeniden Çözüm Senaryosu Üret"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${question.status === 'processing' ? 'animate-spin' : ''}`} />
@@ -260,6 +271,24 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 <p className="text-xs text-slate-400 mt-1">
                   Kavramlar, ayet/hadis tahlili ve çeldirici analizleri derleniyor.
                 </p>
+              </div>
+
+              {/* Takılma Önleyici İptal ve Yeniden Başlat Butonları */}
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                <button
+                  onClick={() => onCancelProcessing(question.id)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-200 dark:border-rose-900 transition-colors shadow-xs"
+                >
+                  <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                  <span>İşlemi İptal Et / Sıfırla</span>
+                </button>
+                <button
+                  onClick={() => onRegenerate(question)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 transition-colors shadow-xs"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Yeniden Başlat</span>
+                </button>
               </div>
             </div>
           ) : question.status === 'error' ? (
