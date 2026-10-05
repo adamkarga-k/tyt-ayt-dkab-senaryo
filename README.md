@@ -29,4 +29,5 @@ Sistem, soru görselini deşifre ettiğinde akademik raporlama yerine doğrudan 
 ## 👤 Yapımcı
 
 **Sistemi Oluşturan:** Ubeydullah Öz  
+🌐 Web & Blog: [adamkarga.net](http://adamkarga.net/)  
 🔗 Instagram: [instagram.com/adamkarga](https://instagram.com/adamkarga)
