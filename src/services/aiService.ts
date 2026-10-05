@@ -28,12 +28,11 @@ function parseScenarioResponse(rawText: string): ScenarioData {
   };
 }
 
-// Denenecek model öncelik listesi (Yoğunluk anında otomatik olarak sıradakine geçer)
+// Denenecek model öncelik listesi (Google'ın yeni kullanıcılara sunduğu güncel ve kararlı modeller)
 const FALLBACK_MODELS = [
+  'gemini-3.8-flash',
   'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-2.5-flash',
-  'gemini-3.8-flash'
+  'gemini-1.5-flash'
 ];
 
 /**
@@ -44,10 +43,15 @@ export async function generateScenarioForQuestion(
   question: QuestionItem,
   options: GenerationOptions
 ): Promise<ScenarioData> {
-  const { apiKey, model = 'gemini-2.0-flash', customRules } = options;
+  let { apiKey, model = 'gemini-3.8-flash', customRules } = options;
 
   if (!apiKey || apiKey.trim().length === 0) {
     throw new Error('Lütfen geçerli bir Gemini API anahtarı girin.');
+  }
+
+  // Google'ın yeni kullanıcılara kapattığı 2.5 modellerini kesin olarak engelle ve 3.8'e yükselt
+  if (!model || model.includes('2.5')) {
+    model = 'gemini-3.8-flash';
   }
 
   // Base64 görsel verisini temizle
@@ -73,7 +77,7 @@ export async function generateScenarioForQuestion(
   // İlk denenecek model ve ardından sırayla denenecek yedek modeller
   const candidateModels = [
     model,
-    ...FALLBACK_MODELS.filter(m => m !== model)
+    ...FALLBACK_MODELS.filter(m => m !== model && !m.includes('2.5'))
   ];
 
   let lastErrorMessage = '';
@@ -146,7 +150,7 @@ export async function generateScenarioForQuestion(
     }
   }
 
-  throw new Error(`Google sunucuları şu an çok yoğun (${lastErrorMessage}). Lütfen 5-10 saniye sonra "Tekrar Dene" butonuna basın.`);
+  throw new Error(lastErrorMessage || 'Google AI sunucularından yanıt alınamadı. Lütfen birkaç saniye sonra "Tekrar Dene" butonuna basın.');
 }
 
 // Yardımcı bekleme fonksiyonu (Rate limit önlemek için)
