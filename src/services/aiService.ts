@@ -167,3 +167,72 @@ export async function generateScenarioForQuestion(
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+/**
+ * Mevcut senaryoyu, soru kökünü ve öncülleri bozmadan yalnızca izahları kısaltan fonksiyon
+ */
+export async function shortenScenario(
+  currentScenarioText: string,
+  options: GenerationOptions
+): Promise<string> {
+  let { apiKey, model = 'gemini-3.8-flash' } = options;
+
+  if (!apiKey || apiKey.trim().length === 0) {
+    throw new Error('Lütfen geçerli bir Gemini API anahtarı girin.');
+  }
+
+  if (!model || model.includes('1.5') || model.includes('2.5')) {
+    model = 'gemini-3.8-flash';
+  }
+
+  const prompt = `Sen uzman bir MEBİ Din Kültürü video seslendirme editörüsün.
+Aşağıda verilen mevcut soru çözüm senaryosunu, videonun süresini kısaltmak için daha KOMPAKT, SERİ ve KISA bir versiyona dönüştür.
+
+### ⛔ KESİNLİKLE UYULMASI GEREKEN KATI KURALLAR:
+1. En baştaki SORU KÖKÜNÜ, ÖNCÜLLERİ (I, II, III) ve SORU KALIBINI KESİNLİKLE KISALTMA, ÇIKARMA VEYA BOZMA! Birebir aynen koru.
+2. Şıkların veya öncüllerin başlıklarını (A, B, C, D, E veya I, II, III) aynen koru.
+3. YALNIZCA doğru cevaba giden açıklamaları, tahlilleri ve gerekçeleri olabildiğince KISA, NET ve NOKTA ATIŞI (her şık/öncül için en fazla 1 kısa ve vurucu cümle) haline getir.
+4. Kapanış cümlesini ve doğru seçenek ifadesini aynen koru.
+5. Asla selamlama yapma ("Merhaba sevgili gençler" vb. yazma).
+
+İşte kısaltılacak mevcut senaryo:
+"""
+${currentScenarioText}
+"""
+
+Şimdi yukarıdaki kurallara göre sadece izahları kısaltılmış kompakt senaryoyu yaz:`;
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey.trim())}`;
+
+  const requestBody = {
+    contents: [
+      {
+        parts: [{ text: prompt }]
+      }
+    ],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 2000
+    }
+  };
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!response.ok) {
+    const errorJson = await response.json().catch(() => ({}));
+    throw new Error(errorJson.error?.message || `API Hatası: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const shortened = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!shortened) {
+    throw new Error('Senaryo kısaltılamadı.');
+  }
+
+  return shortened.trim();
+}

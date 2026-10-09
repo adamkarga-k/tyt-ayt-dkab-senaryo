@@ -9,7 +9,7 @@ import {
   importDataFromJSON,
   DEFAULT_FOLDER_ID
 } from './db';
-import { generateScenarioForQuestion, sleep } from './services/aiService';
+import { generateScenarioForQuestion, shortenScenario, sleep } from './services/aiService';
 import type { QuestionItem, Folder, AppSettings, BatchProgress } from './types';
 
 import { Header } from './components/Header';
@@ -279,6 +279,33 @@ export function App() {
     }
   };
 
+  // Senaryoyu Kısalt (Öncüller ve kalıp korunur, izahlar özetlenir)
+  const handleShortenScenario = async (q: QuestionItem) => {
+    if (!settings.geminiApiKey) {
+      setIsApiSettingsOpen(true);
+      return;
+    }
+
+    if (!q.scenario?.fullText) return;
+
+    try {
+      const shortenedText = await shortenScenario(q.scenario.fullText, {
+        apiKey: settings.geminiApiKey,
+        model: settings.selectedModel
+      });
+
+      await db.questions.update(q.id, {
+        scenario: {
+          ...q.scenario,
+          fullText: shortenedText
+        },
+        updatedAt: Date.now()
+      });
+    } catch (err: any) {
+      alert('Senaryo kısaltılırken bir hata oluştu: ' + (err.message || 'Bilinmeyen hata'));
+    }
+  };
+
   // İşlemi İptal Etme / Sıfırlama
   const handleCancelProcessing = async (questionId: string) => {
     await db.questions.update(questionId, {
@@ -507,6 +534,7 @@ export function App() {
                     onUpdateScenario={handleUpdateScenarioText}
                     onSelectCorrectAnswer={handleSelectCorrectAnswer}
                     onRegenerate={handleRegenerateQuestion}
+                    onShortenScenario={handleShortenScenario}
                     onCancelProcessing={handleCancelProcessing}
                     onDelete={handleDeleteQuestion}
                     onOpenMoveModal={(q) => setMovingQuestion(q)}
